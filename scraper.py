@@ -33,33 +33,31 @@ timeDate = extraInformation[0].split(' ')
 
 # Assign to an easy to use map
 preliminaryInformation = {	
-							'title': title[0], 
-							'a_date': time.strftime("%d/%m/%Y"), 
-							'a_time': time.strftime("%H:%M"), 
+							'title': title[0],  
+							'author': extraInformation[1],
 							'p_date': timeDate[0], 
-							'p_time': timeDate[1], 
-							'author': extraInformation[1]
+							'p_time': timeDate[1],
+							'a_date': time.strftime("%d/%m/%Y"), 
+							'a_time': time.strftime("%H:%M")
 						 }
 
 print "\n"
 print "Title          : " + preliminaryInformation['title']
-print "Author         : " + preliminaryInformation['author']+ "\n"
+print "Author         : " + preliminaryInformation['author'] + "\n"
 print "Date Published : " + preliminaryInformation['p_date']
 print "Time Published : " + preliminaryInformation['p_time'] + "\n"
 print "Date Accessed  : " + preliminaryInformation['a_date']
 print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
-print "\n\n-------------------------------------------------------------------------------"
-
 
 # Honorifics array to hold honorifics and abbreviations that we will need to analyze sentence terminals
-honorificsArray = []
+honorificsArray = ['гг.']
 
 # This will hold all of our sentences
 sentenceArray = []
 
 sentence = ""
 
-# Here is where we comb through and check the terminals
+# Reconstruct the sentences
 for x in range(len(totalInformationSplit)):
 	# Get the length of the word
 	lengthOfWord = len(totalInformationSplit[x])
@@ -77,15 +75,20 @@ for x in range(len(totalInformationSplit)):
 			sentence = ""
 	# If it is an ! or a ? then it is automatically the ending of a sentence
 	elif(lastChar == '!' or lastChar == '?'):
-			sentenceArray.append(sentence + totalInformationSplit[x])
-			sentence = ""
+		sentenceArray.append(sentence + totalInformationSplit[x])
+		sentence = ""
 	# Else just add it to the sentence
 	else:
-			sentence += totalInformationSplit[x] + " "
+		sentence += totalInformationSplit[x] + " "
 
 # At this point, sentence should be empty
 
 
+# Having problems with Russian abbreviated names and initials, maybe we can try looking at the last name
+# or atleast analyzing a piece of it to see if it is similar structurally to name and then make some assumptions
+# Machine learning?
+
+# Have a problem with sentences like the below
 '''
 Problems with sentences like:
 
@@ -95,8 +98,7 @@ Problems with sentences like:
 как русской, так и национальной драматургии.
 '''
 
-
-# Print out the entire array
+# Print out the entire array of reconstructed sentences
 print "\n\n"
 for x in range(len(sentenceArray)):
 	print sentenceArray[x]
