@@ -1,7 +1,7 @@
 #PythonScraper
 This is a Python Scraper for news.tj.
 
-You can use this by installing requests and lxml and then setting up a local server:
+You can use this by installing requests and lxml:
 
 "pip install" ...
 
