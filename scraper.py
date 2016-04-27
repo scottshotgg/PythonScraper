@@ -31,8 +31,6 @@ for x in range(len(pTag)):
 # Split the time and date
 timeDate = extraInformation[0].split(' ')
 
-print '\n'
-
 # Assign to an easy to use map
 preliminaryInformation = {	
 							'title': title[0], 
@@ -43,12 +41,14 @@ preliminaryInformation = {
 							'author': extraInformation[1]
 						 }
 
+print "\n"
 print "Title          : " + preliminaryInformation['title']
+print "Author         : " + preliminaryInformation['author']+ "\n"
 print "Date Published : " + preliminaryInformation['p_date']
-print "Time Published : " + preliminaryInformation['p_time']
-print "Author         : " + preliminaryInformation['author']
+print "Time Published : " + preliminaryInformation['p_time'] + "\n"
 print "Date Accessed  : " + preliminaryInformation['a_date']
-print "Time Accessed  : " + preliminaryInformation['a_time']
+print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
+print "\n\n-------------------------------------------------------------------------------"
 
 
 # Honorifics array to hold honorifics and abbreviations that we will need to analyze sentence terminals
