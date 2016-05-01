@@ -28,8 +28,8 @@ def stripAlphaChars(word):
 	while x < len(word):
 		if word[x] not in russianAlphaNumericChars and word[x] not in terminals:
 			word = word.replace(word[x], u'')
-			x -= 1
-		x += 1
+		else:
+			x += 1
 	#print "\"" + word + "\""
 	return word
 
