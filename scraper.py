@@ -106,6 +106,8 @@ for x in range(len(totalInformationSplit)):
 
 	# Get the last character by getting the [last - 1 : last] substring
 	lastChar = word[lengthOfWord - 1 : lengthOfWord]
+
+	# Replace the '!', and '?' that may have been before a '.'
 	word = word.replace('!', '').replace('?', '')
 	# Check if that last char is a period
 	if(lastChar == u'.'):
@@ -128,7 +130,7 @@ for x in range(len(totalInformationSplit)):
 			# Else assume that the terminal is the ending of a sentence
 				sentenceArray.append(sentence + totalInformationSplit[x])
 				sentence = ""
-	# If it is an ! or a ? or an … then it is automatically the ending of a sentence
+	# If it is one of the terminals then it is automatically the ending of a sentence
 	elif(lastChar in terminals):
 		sentenceArray.append(sentence + totalInformationSplit[x])
 		sentence = ""
