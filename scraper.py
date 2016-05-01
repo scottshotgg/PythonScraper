@@ -14,7 +14,6 @@ customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковско
 terminals = ['!', '?', u'…', u'.']
 
 # This function strips out only the alphacharacters and the period
-# This is not being used right now
 def stripAlphaChars(word):
 	russianAlphaNumericChars =[
 							u'а', u'б', u'в', u'г', u'д', u'е', u'ё', u'ж', u'з', u'и', u'й', 
