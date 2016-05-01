@@ -9,7 +9,7 @@ import enchant
 d = enchant.Dict("ru_RU")
 
 # Initialize a custom words array to hold words that are not in the dictionary, like names and other stuff
-customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'М.Турсун-заде', u'Макбет']
+customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'МТурсун-заде', u'Макбет']
 
 # Terminal symbols
 terminals = ['!', '?', u'…']
@@ -81,14 +81,13 @@ for x in range(len(totalInformationSplit)):
 	lengthOfWord = len(totalInformationSplit[x])
 	# Get the last character by getting the [last - 1 : last] substring
 	lastChar = totalInformationSplit[x][lengthOfWord - 1 : lengthOfWord]
-	word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'')
+	word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'').replace('.', u'').replace(u'…', u'')
 	print word
 	# Check if that last char is a period
 	if(lastChar == '.'):
 		# If its not a word the assume that it is not the end of a sentence
 		if(not(d.check(word))):
 			# If it does happen to be a word in the custom words then it is a word
-			word = word.replace('.', u'').replace(u'…', u'')
 			if((word in customWords)):
 				sentenceArray.append(sentence + totalInformationSplit[x])
 				sentence = ""
