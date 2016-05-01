@@ -164,4 +164,4 @@ for x in range(len(sentenceArray)):
 	print sentenceArray[x]
 	print "\n"
 
-print len(sentenceArray) + " sentences foind"
+print len(sentenceArray), "sentences found.\n"
