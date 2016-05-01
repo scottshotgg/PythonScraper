@@ -163,3 +163,5 @@ print "\n\n"
 for x in range(len(sentenceArray)):
 	print sentenceArray[x]
 	print "\n"
+
+print len(sentenceArray) + " sentences foind"
