@@ -111,7 +111,7 @@ for x in range(len(totalInformationSplit)):
 	word = word.replace('!', '').replace('?', '')
 	# Check if that last char is a period
 	if lastChar == u'.':
-		# If its not a word the assume that it is not the end of a sentence
+		# If it isnt a word then assume that it is not the end of a sentence
 		if not d.check(word):
 			# If it does happen to be a word in the custom words then it is a word
 			if word.replace('.', u'').replace(u'…', u'') in customWords:
@@ -124,6 +124,8 @@ for x in range(len(totalInformationSplit)):
 		# that they are single letter representing the first initial of someones name
 		else:
 			# If it is just two characters, i.e, a letter and a period
+			# Grammatical stucture of Russian does not allow the sentence to be terminated with a singular character
+			# and thus this means it must be an initial
 			if len(totalInformationSplit[x]) < 3:
 				sentence += totalInformationSplit[x] + " "
 			else:
@@ -143,8 +145,7 @@ for x in range(len(totalInformationSplit)):
 #sentenceArray.append(sentence + totalInformationSplit[x])
 
 
-# Having problems with Russian abbreviated names and initials, maybe we can try looking at the last name
-# or atleast analyzing a piece of it to see if it is similar structurally to name and then make some assumptions
+# Analyze a piece of it to see if it is similar structurally to name and then make some assumptions
 # Machine learning?
 
 # Have a problem with sentences like the below
