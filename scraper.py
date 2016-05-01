@@ -5,12 +5,18 @@ import requests
 import time
 import enchant
 
+# Initialize the dictionary
 d = enchant.Dict("ru_RU")
-print d.check(u'бесконечно')
 
+# Initialize a custom words array to hold words that are not in the dictionary, like names and other stuff
 customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'М.Турсун-заде', u'Макбет']
-variable = u'Калигула' in customWords
-print variable
+
+# Terminal symbols
+terminals = ['!', '?', u'…']
+
+# Just some stuff that I am using during debug to test some words
+print d.check(u'бесконечно')
+print u'Калигула' in customWords
 
 # Input news.tj article
 page = requests.get('http://news.tj/ru/news/teatr-mayakovskogo-za-chto-smertnaya-kazn')
@@ -66,13 +72,11 @@ abbreviations = [u'гг.']
 # This will hold all of our sentences
 sentenceArray = []
 
+# Initialize the sentence variable and the lastWord ()
 sentence = ""
-lastWord = 0
+
 # Reconstruct the sentences
-#for x in range(len(totalInformationSplit)):
-length = len(totalInformationSplit)
-x = 0
-while x < length:
+for x in range(len(totalInformationSplit)):
 	# Get the length of the word
 	lengthOfWord = len(totalInformationSplit[x])
 	# Get the last character by getting the [last - 1 : last] substring
@@ -81,66 +85,33 @@ while x < length:
 	print word
 	# Check if that last char is a period
 	if(lastChar == '.'):
-		oneBeforeLastChar = word[lengthOfWord - 2 : lengthOfWord - 1]
-		#twoBeforeLastChar = totalInformationSplit[x][lengthOfWord -3 : lengthOfWord - 2]
-		#threeBeforeLastChar = totalInformationSplit[x][lengthOfWord -4 : lengthOfWord - 3]
-		# do something with these later
-
-		# cannot detect words that are not officially words but may be slang inside of quotes
-		# for instance Калигула
-
-		print totalInformationSplit[x]
-		#if(oneBeforeLastChar.isupper()):
-			# Instead of adding, check whether it is a named entity
-			#sentence += totalInformationSplit[x] + " "
+		# If its not a word the assume that it is not the end of a sentence
 		if(not(d.check(word))):
+			# If it does happen to be a word in the custom words then it is a word
 			word = word.replace('.', u'').replace(u'…', u'')
 			if((word in customWords)):
 				sentenceArray.append(sentence + totalInformationSplit[x])
 				sentence = ""
-				lastWord = 1
-				x += 1
+			# If not just treat it as if it was not a word
 			else:
-			#sentence += totalInformationSplit[x] + " " + totalInformationSplit[x + 1] + " "
-			# Sometimes this will trigger for initials like A, B, 
-			#if(len(totalInformationSplit[x]) > 2):
 				sentence += totalInformationSplit[x] + " "
-				lastWord = 0
-			#else:
-			#	sentenceArray.append(sentence)
-			#	sentence = ""
-			#	sentence += totalInformationSplit[x] + " "
-			#x += 2
-			#scontinue
-		# If is is a period then check if it is in the array of abbreviations
-		#elif(len(word) == 2):
-		#	sentence += totalInformationSplit[x] + " "
-		elif(word in abbreviations):
-			# If it is in the abbreviations array then add it to the sentence as a part of the sentence
-			sentence += totalInformationSplit[x] + " "
-			lastWord = 0
+		# Else it might be just a single letter, in which case for now we will assume 
+		# that they are single letter representing the first initial of someones name
 		else:
+			# If it is just two characters, i.e, a letter and a period
 			if(len(totalInformationSplit[x]) < 3):
 				sentence += totalInformationSplit[x] + " "
-				lastWord = 0
 			else:
 			# Else assume that the terminal is the ending of a sentence
 				sentenceArray.append(sentence + totalInformationSplit[x])
 				sentence = ""
-				lastWord = 1
-	# If it is an ! or a ? then it is automatically the ending of a sentence
-	elif(lastChar == '!' or lastChar == '?' or lastChar == u'…'):
+	# If it is an ! or a ? or an … then it is automatically the ending of a sentence
+	elif(lastChar in terminals):
 		sentenceArray.append(sentence + totalInformationSplit[x])
 		sentence = ""
-		lastWord = 1
 	# Else just add it to the sentence
 	else:
 		sentence += totalInformationSplit[x] + " "
-		lastWord = 0
-
-	x += 1
-	#print sentence
-	#print lastWord
 
 # At this point, sentence should be empty
 
