@@ -5,16 +5,29 @@ import requests
 import time
 import enchant
 
+
+
+# Initialize a custom words array to hold words that are not in the dictionary, like names and other stuff
+customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'МТурсун-заде', u'Макбет']
+
+# Terminal symbols
+terminals = ['!', '?', u'…', u'.']
+
 # This function strips out only the alphacharacters and the period
+# This is not being used right now
 def stripAlphaChars(word):
-	russianAlphaChars =['а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 
-						'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 
-						'я', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 
-						'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ' 'Ы', 'Ь', 'Э',
-						'Ю', 'Я']
+	russianAlphaNumericChars =[
+							u'а', u'б', u'в', u'г', u'д', u'е', u'ё', u'ж', u'з', u'и', u'й', 
+							u'к', u'л', u'м', u'н', u'о', u'п', u'р', u'с', u'т', u'у', u'ф', 
+							u'х', u'ц', u'ч', u'ш', u'щ', u'ъ', u'ы', u'ь', u'э', u'ю', u'я', 
+							u'А', u'Б', u'В', u'Г', u'Д', u'Е', u'Ё', u'Ж', u'З', u'И', u'Й', 
+							u'К', u'Л', u'М', u'Н', u'О', u'П', u'Р', u'С', u'Т', u'У', u'Ф', 
+							u'Х', u'Ц', u'Ч', u'Ш', u'Щ', u'Ъ', u'Ы', u'Ь', u'Э', u'Ю', u'Я',
+							u'0', u'1', u'2', u'3', u'4', u'5', u'6', u'7', u'8', u'9'
+						]
 	x = 0
 	while x < len(word):
-		if not(word[x] in russianAlphaChars) or word[x] == u'.':
+		if word[x] not in russianAlphaNumericChars and word[x] not in terminals:
 			word = word.replace(word[x], u'')
 			x -= 1
 		x += 1
@@ -24,18 +37,9 @@ def stripAlphaChars(word):
 # Initialize the dictionary
 d = enchant.Dict("ru_RU")
 
-# Initialize a custom words array to hold words that are not in the dictionary, like names and other stuff
-customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'МТурсун-заде', u'Макбет']
-
-# Terminal symbols
-terminals = ['!', '?', u'…']
-
 # Just some stuff that I am using during debug to test some words
 print d.check(u'ученья..')
 print u'Калигула' in customWords
-
-if(u' ' == u' '):
-	print "yss"
 
 # Input news.tj article
 page = requests.get('http://news.tj/ru/news/teatr-mayakovskogo-za-chto-smertnaya-kazn')
@@ -98,8 +102,8 @@ sentence = ""
 # Reconstruct the sentences
 for x in range(len(totalInformationSplit)):
 	# This needs to be done by stripping out only alpha chars and then have those
-	#word = stripAlphaChars(totalInformationSplit[x])
-	word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'').replace(u' ', u'').replace(u' ', u'')
+	word = stripAlphaChars(totalInformationSplit[x])
+	#word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'').replace(u' ', u'').replace(u' ', u'')
 
 	# Get the length of the word
 	lengthOfWord = len(word)
