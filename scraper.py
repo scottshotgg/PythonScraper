@@ -5,6 +5,22 @@ import requests
 import time
 import enchant
 
+# This function strips out only the alphacharacters and the period
+def stripAlphaChars(word):
+	russianAlphaChars =['а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 
+						'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 
+						'я', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 
+						'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ' 'Ы', 'Ь', 'Э',
+						'Ю', 'Я']
+	x = 0
+	while x < len(word):
+		if not(word[x] in russianAlphaChars) or word[x] == u'.':
+			word = word.replace(word[x], u'')
+			x -= 1
+		x += 1
+	print "\"" + word + "\""
+	return word
+
 # Initialize the dictionary
 d = enchant.Dict("ru_RU")
 
@@ -15,11 +31,15 @@ customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковско
 terminals = ['!', '?', u'…']
 
 # Just some stuff that I am using during debug to test some words
-print d.check(u'бесконечно')
+print d.check(u'ученья..')
 print u'Калигула' in customWords
+
+if(u' ' == u' '):
+	print "yss"
 
 # Input news.tj article
 page = requests.get('http://news.tj/ru/news/teatr-mayakovskogo-za-chto-smertnaya-kazn')
+#page = requests.get('http://news.tj/ru/node/225178')
 
 # De-stringify it into a tree form
 tree = html.fromstring(page.content)
@@ -77,18 +97,22 @@ sentence = ""
 
 # Reconstruct the sentences
 for x in range(len(totalInformationSplit)):
+	# This needs to be done by stripping out only alpha chars and then have those
+	#word = stripAlphaChars(totalInformationSplit[x])
+	word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'').replace(u' ', u'').replace(u' ', u'')
+
 	# Get the length of the word
-	lengthOfWord = len(totalInformationSplit[x])
+	lengthOfWord = len(word)
+
 	# Get the last character by getting the [last - 1 : last] substring
-	lastChar = totalInformationSplit[x][lengthOfWord - 1 : lengthOfWord]
-	word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'').replace('.', u'').replace(u'…', u'')
-	print word
+	lastChar = word[lengthOfWord - 1 : lengthOfWord]
+	word = word.replace('!', '').replace('?', '')
 	# Check if that last char is a period
-	if(lastChar == '.'):
+	if(lastChar == u'.'):
 		# If its not a word the assume that it is not the end of a sentence
 		if(not(d.check(word))):
 			# If it does happen to be a word in the custom words then it is a word
-			if((word in customWords)):
+			if((word.replace('.', u'').replace(u'…', u'') in customWords)):
 				sentenceArray.append(sentence + totalInformationSplit[x])
 				sentence = ""
 			# If not just treat it as if it was not a word
