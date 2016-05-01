@@ -3,11 +3,19 @@
 from lxml import html
 import requests
 import time
+import enchant
+
+d = enchant.Dict("ru_RU")
+print d.check(u'бесконечно')
+
+customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'М.Турсун-заде', u'Макбет']
+variable = u'Калигула' in customWords
+print variable
 
 # Input news.tj article
 page = requests.get('http://news.tj/ru/news/teatr-mayakovskogo-za-chto-smertnaya-kazn')
 
-# De stringify it into a tree form
+# De-stringify it into a tree form
 tree = html.fromstring(page.content)
 
 # Get the title
@@ -49,37 +57,90 @@ print "Time Published : " + preliminaryInformation['p_time'] + "\n"
 print "Date Accessed  : " + preliminaryInformation['a_date']
 print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
 
-# Honorifics array to hold honorifics and abbreviations that we will need to analyze sentence terminals
-honorificsArray = ['гг.']
+# Honorifics array to hold abbreviations and abbreviations that we will need to analyze sentence terminals
+abbreviations = [u'гг.']
+
+
+
 
 # This will hold all of our sentences
 sentenceArray = []
 
 sentence = ""
-
+lastWord = 0
 # Reconstruct the sentences
-for x in range(len(totalInformationSplit)):
+#for x in range(len(totalInformationSplit)):
+length = len(totalInformationSplit)
+x = 0
+while x < length:
 	# Get the length of the word
 	lengthOfWord = len(totalInformationSplit[x])
 	# Get the last character by getting the [last - 1 : last] substring
 	lastChar = totalInformationSplit[x][lengthOfWord - 1 : lengthOfWord]
+	word = totalInformationSplit[x].replace(u'«', u'').replace(u'»', u'')
+	print word
 	# Check if that last char is a period
 	if(lastChar == '.'):
-		# If is is a period then check if it is in the array of honorifics
-		if(totalInformationSplit[x] in honorificsArray):
-			# If it is in the honorifics array then add it to the sentence as a part of the sentence
+		oneBeforeLastChar = word[lengthOfWord - 2 : lengthOfWord - 1]
+		#twoBeforeLastChar = totalInformationSplit[x][lengthOfWord -3 : lengthOfWord - 2]
+		#threeBeforeLastChar = totalInformationSplit[x][lengthOfWord -4 : lengthOfWord - 3]
+		# do something with these later
+
+		# cannot detect words that are not officially words but may be slang inside of quotes
+		# for instance Калигула
+
+		print totalInformationSplit[x]
+		#if(oneBeforeLastChar.isupper()):
+			# Instead of adding, check whether it is a named entity
+			#sentence += totalInformationSplit[x] + " "
+		if(not(d.check(word))):
+			word = word.replace('.', u'').replace(u'…', u'')
+			if((word in customWords)):
+				sentenceArray.append(sentence + totalInformationSplit[x])
+				sentence = ""
+				lastWord = 1
+				x += 1
+			else:
+			#sentence += totalInformationSplit[x] + " " + totalInformationSplit[x + 1] + " "
+			# Sometimes this will trigger for initials like A, B, 
+			#if(len(totalInformationSplit[x]) > 2):
+				sentence += totalInformationSplit[x] + " "
+				lastWord = 0
+			#else:
+			#	sentenceArray.append(sentence)
+			#	sentence = ""
+			#	sentence += totalInformationSplit[x] + " "
+			#x += 2
+			#scontinue
+		# If is is a period then check if it is in the array of abbreviations
+		#elif(len(word) == 2):
+		#	sentence += totalInformationSplit[x] + " "
+		elif(word in abbreviations):
+			# If it is in the abbreviations array then add it to the sentence as a part of the sentence
 			sentence += totalInformationSplit[x] + " "
+			lastWord = 0
 		else:
+			if(len(totalInformationSplit[x]) < 3):
+				sentence += totalInformationSplit[x] + " "
+				lastWord = 0
+			else:
 			# Else assume that the terminal is the ending of a sentence
-			sentenceArray.append(sentence + totalInformationSplit[x])
-			sentence = ""
+				sentenceArray.append(sentence + totalInformationSplit[x])
+				sentence = ""
+				lastWord = 1
 	# If it is an ! or a ? then it is automatically the ending of a sentence
-	elif(lastChar == '!' or lastChar == '?'):
+	elif(lastChar == '!' or lastChar == '?' or lastChar == u'…'):
 		sentenceArray.append(sentence + totalInformationSplit[x])
 		sentence = ""
+		lastWord = 1
 	# Else just add it to the sentence
 	else:
 		sentence += totalInformationSplit[x] + " "
+		lastWord = 0
+
+	x += 1
+	#print sentence
+	#print lastWord
 
 # At this point, sentence should be empty
 

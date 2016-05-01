@@ -1,0 +1,19 @@
+edge cases for terminal abbreviation detection:
+
+M.M. lskdjflsdfl  - detect . then cap then . then concat
+
+A. klsdflsk       - detect . then cap then if nothing then concat
+
+Bl. laskjfdlsfj   - V
+
+			cant detect . then cap
+			cant detect . then until cap / first cap -- ... USSR. I ....
+											... U.S.S.R. I ...
+												will also mess up the first one
+						have to do some word structural analysis on the previous word (i.e, last name) but this is not language agnostic not does it work for irregular names
+			may be able to detect if the next work is even a word
+
+
+
+
+I go to UTD. A.K. Chaikovsky goes here too.
