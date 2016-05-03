@@ -4,6 +4,7 @@ from lxml import html
 import requests
 import time
 import enchant
+import sys
 #import nltk
 
 # Saving these
@@ -17,7 +18,10 @@ import enchant
 
 # Initialize a custom words array to hold words that are not in the dictionary, like names and other stuff
 #not using this anymore
-customWords = [u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'МТурсун-заде', u'Макбет', u'Душанбе-Лахор-Душанбе', u'Эйр']
+customWords = [
+				u'ССР', u'Лахути', u'Яншина', u'Маяковского', u'Калигула', u'МТурсун-заде', 
+				u'Макбет', u'Душанбе-Лахор-Душанбе', u'Эйр'
+			  ]
 
 # Terminal symbols
 terminals = ['!', '?', u'…', u'.']
@@ -25,13 +29,17 @@ terminals = ['!', '?', u'…', u'.']
 # This function strips out only the alphacharacters and the period
 def stripAlphaChars(word):
 	russianAlphaNumericChars = [
-								u'а', u'б', u'в', u'г', u'д', u'е', u'ё', u'ж', u'з', u'и', u'й', 
-								u'к', u'л', u'м', u'н', u'о', u'п', u'р', u'с', u'т', u'у', u'ф', 
-								u'х', u'ц', u'ч', u'ш', u'щ', u'ъ', u'ы', u'ь', u'э', u'ю', u'я', 
-								u'А', u'Б', u'В', u'Г', u'Д', u'Е', u'Ё', u'Ж', u'З', u'И', u'Й', 
-								u'К', u'Л', u'М', u'Н', u'О', u'П', u'Р', u'С', u'Т', u'У', u'Ф', 
-								u'Х', u'Ц', u'Ч', u'Ш', u'Щ', u'Ъ', u'Ы', u'Ь', u'Э', u'Ю', u'Я',
-								u'0', u'1', u'2', u'3', u'4', u'5', u'6', u'7', u'8', u'9', u'-'
+									u'а', u'б', u'в', u'г', u'д', u'е', u'ё', u'ж', u'з', u'и', u'й', 
+									u'к', u'л', u'м', u'н', u'о', u'п', u'р', u'с', u'т', u'у', u'ф', 
+									u'х', u'ц', u'ч', u'ш', u'щ', u'ъ', u'ы', u'ь', u'э', u'ю', u'я',
+
+									u'А', u'Б', u'В', u'Г', u'Д', u'Е', u'Ё', u'Ж', u'З', u'И', u'Й', 
+									u'К', u'Л', u'М', u'Н', u'О', u'П', u'Р', u'С', u'Т', u'У', u'Ф', 
+									u'Х', u'Ц', u'Ч', u'Ш', u'Щ', u'Ъ', u'Ы', u'Ь', u'Э', u'Ю', u'Я',
+
+									u'0', u'1', u'2', u'3', u'4', u'5', u'6', u'7', u'8', u'9',
+
+									u'-'
 							   ]
 	x = 0
 	while x < len(word):
@@ -217,9 +225,16 @@ def stripArticle(article):
 
 #make Input news.tj article
 
-x = 225083
-while x < 225183:
-	print 'http://news.tj/ru/node/%d' % x
-	stripArticle('http://news.tj/ru/node/%d' % x)
-	x += 1
+if len(sys.argv) == 1:
+	x = 225083
+	while x < 225183:
+		print 'http://news.tj/ru/node/%d' % x
+		stripArticle('http://news.tj/ru/node/%d' % x)
+		print '\n------------------------------------------------------------------------------------------------'
+		x += 1
+else:
+	print '\n------------------------------------------------------------------------------------------------'
+	print str(sys.argv[1])
+	stripArticle(str(sys.argv[1]))
+	print '\n------------------------------------------------------------------------------------------------'
 
