@@ -5,14 +5,16 @@ import requests
 import time
 import enchant
 import sys
+import sqlite3
 #import nltk
 
 # Saving these
-	#article = requests.get('http://news.tj/ru/news/teatr-mayakovskogo-za-chto-smertnaya-kazn')
-	#article = requests.get('http://news.tj/ru/news/na-zadvorkakh-promyshlennogo-giganta-ili-v-kakikh-usloviyakh-zhivut-tekstilshchiki')
-	#article = requests.get('http://news.tj/ru/news/aviakompaniya-somon-eir-otkryla-novyi-reis-dushanbe-kabul')
-	#article = requests.get('http://news.tj/ru/node/225178')
-	#article = requests.get('http://news.tj/ru/news/nochnaya-paskhalnaya-sluzhba-v-dushanbe-foto')
+#article = requests.get('http://news.tj/ru/news/teatr-mayakovskogo-za-chto-smertnaya-kazn')
+#article = requests.get('http://news.tj/ru/news/na-zadvorkakh-promyshlennogo-giganta-ili-v-kakikh-usloviyakh
+	#-zhivut-tekstilshchiki')
+#article = requests.get('http://news.tj/ru/news/aviakompaniya-somon-eir-otkryla-novyi-reis-dushanbe-kabul')
+#article = requests.get('http://news.tj/ru/node/225178')
+#article = requests.get('http://news.tj/ru/news/nochnaya-paskhalnaya-sluzhba-v-dushanbe-foto')
 
 
 
@@ -50,18 +52,27 @@ def stripAlphaChars(word):
 	#print "\"" + word + "\""
 	return word
 
+# Add a path to this
+def saveArticleToFile(content, title):
+	filename = title.replace(u' ', '-') + '.html'
+	file = open(filename, 'w')
+	file.write(content)
+	file.close()
+	return filename
+
+
 def hasNumbers(word):
 	return any(char.isdigit() for char in word)
 
 def stripArticle(article):
 	# Initialize the dictionary
 	russianDictionary = enchant.Dict("ru_RU")
-
-	#e = enchant.Dict("en_US")
-	#print e.check(u'Lahore')
+	print russianDictionary.check(u'кВт.ч.')
+	#englishDictionary = enchant.Dict("en_US")
+	#print englishDictionary.check(u'Lahore')
 
 	# Just some stuff that I am using during debug to test some words
-	#print russianDictionary.check(u'Эйр')
+	#print russianDictionary.check(u'млрд')
 	#print u'Калигула' in customWords
 
 
@@ -80,11 +91,12 @@ def stripArticle(article):
 		print "404 Link"
 		return
 
+
 	# De-stringify it into a tree form
-	tree = html.fromstring(page.content)
+	tree = html.fromstring(page.content) 
 
 	# Get the title
-	title =  tree.xpath('//h1[@class="title"]/text()')
+	title = tree.xpath('//h1[@class="title"]/text()')
 
 	# Get the author, date, and time that it was published
 	extraInformation = tree.xpath('//div[@class="over"]/div/text()')
@@ -92,6 +104,11 @@ def stripArticle(article):
 	# Get all the tags that start with <p> and end with </p> inside of the over class 
 	pTag = tree.xpath('//div[@class="over"]/p')
 
+	#this was for the fotoreportazhi articles
+	'''
+	if len(pTag) == 0:
+		pTag = tree.xpath('//div[@class="over"]/div[@class="photo_body"]/p')
+	'''
 	# Array of words
 	totalInformationSplit = []
 
@@ -101,7 +118,7 @@ def stripArticle(article):
 		for y in range(len(split)):
 			totalInformationSplit.append(split[y])
 
-	# If there is no information on the article then just back out
+	# If there is no information on the article then just back out and assume there isn't an article to process
 	#make this do something later
 	if len(extraInformation) == 0:
 		print "No article found"
@@ -112,7 +129,7 @@ def stripArticle(article):
 
 	# Assign to an easy to use map
 	preliminaryInformation = {	
-								'title': title[0],  
+								'title':  title[0],  
 								'author': extraInformation[1],
 								'p_date': timeDate[0], 
 								'p_time': timeDate[1],
@@ -128,8 +145,21 @@ def stripArticle(article):
 	print "Date Accessed  : " + preliminaryInformation['a_date']
 	print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
 
+
+	db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
+
+	#check for names already take
+	'''
+	fetch = db.fetchone()
+	if fetch != 'None': 
+		return
+	'''
+	# Save the article for internal archiving 
+	filename = saveArticleToFile(page.content, title[0])
+
+	#i don't think this is being used anymore, but I don't want to remove it prematurely
 	# Honorifics array to hold abbreviations and abbreviations that we will need to analyze sentence terminals
-	abbreviations = [u'гг.']
+	abbreviations = [u'гг.', u'кВт.ч.', u'МВт.', u'млрд.', u'млн.']
 
 	# This will hold all of our sentences
 	sentenceArray = []
@@ -167,12 +197,18 @@ def stripArticle(article):
 					sentence += totalInformationSplit[x] + " "
 				'''
 
-				if len(word.replace(u'.', u'')) < 3 and not hasNumbers(word):
+				if word in abbreviations:
+					print word
+
+				# make something more general for the customWords detection later
+				if word in abbreviations or (len(word.replace(u'.', u'')) < 3 and not hasNumbers(word)):
 					sentence += totalInformationSplit[x] + " "
 				else:
 					sentenceArray.append(sentence + totalInformationSplit[x])
 					sentence = ""
 
+			elif word in abbreviations:
+				sentence += totalInformationSplit[x] + " "
 			# Else it might be just a single letter, in which case for now we will assume 
 			# that they are single letter representing the first initial of someones name
 			else:
@@ -181,6 +217,8 @@ def stripArticle(article):
 				# and thus this means it must be an initial
 				if len(totalInformationSplit[x]) < 3:
 					sentence += totalInformationSplit[x] + " "
+				#need an elif to help with the logic here when we get something that is an abbreviation for 
+				#something that is a word but isn't denoting the end of the sentence 
 				else:
 				# Else assume that the terminal is the ending of a sentence
 					sentenceArray.append(sentence + totalInformationSplit[x])
@@ -211,26 +249,65 @@ def stripArticle(article):
 	как русской, так и национальной драматургии.
 	'''
 
+	#check if we already have the title in there for the photoreportazh
+	db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [preliminaryInformation["title"], preliminaryInformation['author'], preliminaryInformation['p_date'], preliminaryInformation['p_time'], preliminaryInformation['a_date'], preliminaryInformation['a_time'], len(sentenceArray), filename, article])
+
 	# Print out the entire array of reconstructed sentences
 	print "\n\n"
 	for x in range(len(sentenceArray)):
 		print sentenceArray[x]
+		print db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
+		print x
+		db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x+1, sentenceArray[x]])
 		print "\n"
 
-	print len(sentenceArray), "sentences found.\n"
+	print "\n\n", len(sentenceArray), "sentences found.\n"
 
-
-# Start of program
-
-
-#make Input news.tj article
-
+	
+# node method, this will not be used for awhile, possibly deprecated in favor of the page method
+'''
 if len(sys.argv) == 1:
 	x = 225083
 	while x < 225183:
 		print 'http://news.tj/ru/node/%d' % x
 		stripArticle('http://news.tj/ru/node/%d' % x)
-		print '\n------------------------------------------------------------------------------------------------'
+		print '\n------------------------------------------------------------------------------------------------\n'
+		x += 1
+else:
+	print '\n------------------------------------------------------------------------------------------------'
+	print str(sys.argv[1])
+	stripArticle(str(sys.argv[1]))
+	print '\n------------------------------------------------------------------------------------------------'
+'''
+
+# http://www.news.tj/ru/news?page=2868
+# is the last page that we can fetch
+
+
+# Start of program
+
+#need to check whether it exists or not
+connection = sqlite3.connect('RussianWordNet.db')
+db = connection.cursor()
+db.execute("CREATE TABLE Articles (ID INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT, Author TEXT, PublishDate TEXT, PublishTime TEXT, AccessDate TEXT, AccessTime TEXT, SentenceCount INTEGER, File TEXT, Link TEXT)")
+#we need to have jagged stuff but idk how to think right now
+#also need a unique id
+db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
+# Page method of retrieving the articles, this will be ther preferred method from now on
+x = 0
+# make that read from a file to load the last page that was fetched
+if len(sys.argv) == 1:
+	#while True:
+		print "http://www.news.tj/ru/news?page=%d" % x
+		articleList = requests.get("http://www.news.tj/ru/news?page=%d" % x)
+		tree = html.fromstring(articleList.content) 
+		title = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
+
+		for x in range(len(title)):
+			print 'http://news.tj' + title[x]
+			stripArticle('http://news.tj' + title[x])
+			print '\n------------------------------------------------------------------------------------------------\n'
+
 		x += 1
 else:
 	print '\n------------------------------------------------------------------------------------------------'
@@ -238,3 +315,6 @@ else:
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
 
+
+connection.commit()
+connection.close()
