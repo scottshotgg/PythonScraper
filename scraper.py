@@ -27,11 +27,21 @@ customWords = [
 				u'Макбет', u'Душанбе-Лахор-Душанбе', u'Эйр'
 			  ]
 
+pagesList = []
+poolArray = []
+
 # Terminal symbols
 terminals = ['!', '?', u'…', u'.']
 
 def f(x): 
 	return 'done scraping%s' % x
+
+def getLinks(link):
+	articleList = requests.get(link)
+	tree = html.fromstring(articleList.content) 
+	linkList = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
+
+	return linkList
 
 # This function strips out only the alphacharacters and the period
 def stripAlphaChars(word):
@@ -313,20 +323,33 @@ else:
 x = 0
 # make that read from a file to load the last page that was fetched
 threadPool = Pool(10)
-poolArray = []
 
 if len(sys.argv) == 1:
-	while True:
-		print "http://www.news.tj/ru/news?page=%d" % x
-		articleList = requests.get("http://www.news.tj/ru/news?page=%d" % x)
-		tree = html.fromstring(articleList.content) 
-		title = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
+	#while True:
 
-		'''
+	linkPages = []
+
+	for x in range(0, 30):
+		linkPages.append("http://www.news.tj/ru/news?page=%d" % x)
+
+
+	results = threadPool.map(getLinks, linkPages)
+	threadPool.close()
+	threadPool.join()
+
+	for y in range(len(results)):
+		for z in range(len(results[y])):
+			pagesList.append('http://www.news.tj' + results[y][z])
+
+	'''
+	print "http://www.news.tj/ru/news?page=%d" % x
+	articleList = requests.get("http://www.news.tj/ru/news?page=%d" % x)
+	tree = html.fromstring(articleList.content) 
+	title = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
+
 		for y in range(len(title)):
 			poolArray.append('http://news.tj' + title[y])
-		'''
-		
+
 		y = 0
 		print len(title)
 		while y < len(title):
@@ -345,7 +368,12 @@ if len(sys.argv) == 1:
 		
 			print '\n------------------------------------------------------------------------------------------------\n'
 			#connection.commit()
-		x += 1
+
+		#x += 1
+	'''
+	threadPool = Pool(5)
+	threadPool.map(stripArticle, pagesList)
+
 else:
 	print '\n------------------------------------------------------------------------------------------------'
 	print str(sys.argv[1])
@@ -355,5 +383,4 @@ else:
 
 #connection.close()
 
-print poolArray
 
