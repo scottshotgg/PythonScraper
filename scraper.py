@@ -6,6 +6,7 @@ import time
 import enchant
 import sys
 import sqlite3
+import os
 #import nltk
 
 # Saving these
@@ -53,9 +54,15 @@ def stripAlphaChars(word):
 	return word
 
 # Add a path to this
-def saveArticleToFile(content, title):
-	filename = title.replace(u' ', '-') + '.html'
+def saveArticleToFile(content, title, date):
+	splitDate = date.split('/')
+	filename = u'Articles/' + splitDate[2] + '/' + splitDate[1] + '/' + splitDate[0] + '/' + title.replace(u' ', '-') + '.html'
+
+	if not os.path.exists(os.path.dirname(filename)):
+		os.makedirs(os.path.dirname(filename))
+
 	file = open(filename, 'w')
+	print "wrote file"
 	file.write(content)
 	file.close()
 	return filename
@@ -127,9 +134,15 @@ def stripArticle(article):
 	# Split the time and date
 	timeDate = extraInformation[0].split(' ')
 
+	# Strip out the ending white space characters, for some reason some articles that were technically the same name has whitespaces at the end
+	'''
+	while title[0][-1] == u' ' or title[0][-1] == u' ':
+		title[0] = title[0][:-1]
+	'''
+
 	# Assign to an easy to use map
 	preliminaryInformation = {	
-								'title':  title[0],  
+								'title':  u''.join(title[0]),  
 								'author': extraInformation[1],
 								'p_date': timeDate[0], 
 								'p_time': timeDate[1],
@@ -146,20 +159,19 @@ def stripArticle(article):
 	print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
 
 
-	db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
+	db.execute("SELECT ID FROM Articles WHERE Title = ?", [preliminaryInformation["title"]])
 
 	#check for names already take
-	'''
 	fetch = db.fetchone()
-	if fetch != 'None': 
+	if fetch is not None: 
 		return
-	'''
+	
 	# Save the article for internal archiving 
-	filename = saveArticleToFile(page.content, title[0])
+	filename = saveArticleToFile(page.content, preliminaryInformation["title"], preliminaryInformation["p_date"])
 
 	#i don't think this is being used anymore, but I don't want to remove it prematurely
 	# Honorifics array to hold abbreviations and abbreviations that we will need to analyze sentence terminals
-	abbreviations = [u'гг.', u'кВт.ч.', u'МВт.', u'млрд.', u'млн.']
+	abbreviations = [u'гг.', u'кВт.ч.', u'МВт.', u'млрд.', u'млн.', u'тонн.', u'тыс.']
 
 	# This will hold all of our sentences
 	sentenceArray = []
@@ -258,7 +270,7 @@ def stripArticle(article):
 		print sentenceArray[x]
 		print db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
 		print x
-		db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x+1, sentenceArray[x]])
+		db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
 		print "\n"
 
 	print "\n\n", len(sentenceArray), "sentences found.\n"
@@ -297,24 +309,24 @@ db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, F
 x = 0
 # make that read from a file to load the last page that was fetched
 if len(sys.argv) == 1:
-	#while True:
+	while True:
 		print "http://www.news.tj/ru/news?page=%d" % x
 		articleList = requests.get("http://www.news.tj/ru/news?page=%d" % x)
 		tree = html.fromstring(articleList.content) 
 		title = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
 
-		for x in range(len(title)):
-			print 'http://news.tj' + title[x]
-			stripArticle('http://news.tj' + title[x])
+		for y in range(len(title)):
+			print 'http://news.tj' + title[y]
+			stripArticle('http://news.tj' + title[y])
 			print '\n------------------------------------------------------------------------------------------------\n'
-
+			connection.commit()
 		x += 1
 else:
 	print '\n------------------------------------------------------------------------------------------------'
 	print str(sys.argv[1])
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
+	connection.commit()
 
-
-connection.commit()
 connection.close()
+
