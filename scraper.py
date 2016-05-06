@@ -7,6 +7,7 @@ import enchant
 import sys
 import sqlite3
 import os
+from multiprocessing import Pool
 #import nltk
 
 # Saving these
@@ -28,6 +29,9 @@ customWords = [
 
 # Terminal symbols
 terminals = ['!', '?', u'…', u'.']
+
+def f(x): 
+	return 'done scraping%s' % x
 
 # This function strips out only the alphacharacters and the period
 def stripAlphaChars(word):
@@ -159,12 +163,12 @@ def stripArticle(article):
 	print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
 
 
-	db.execute("SELECT ID FROM Articles WHERE Title = ?", [preliminaryInformation["title"]])
+	#db.execute("SELECT ID FROM Articles WHERE Title = ?", [preliminaryInformation["title"]])
 
 	#check for names already take
-	fetch = db.fetchone()
-	if fetch is not None: 
-		return
+	#fetch = db.fetchone()
+	#if fetch is not None: 
+	#	return
 	
 	# Save the article for internal archiving 
 	filename = saveArticleToFile(page.content, preliminaryInformation["title"], preliminaryInformation["p_date"])
@@ -262,15 +266,15 @@ def stripArticle(article):
 	'''
 
 	#check if we already have the title in there for the photoreportazh
-	db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [preliminaryInformation["title"], preliminaryInformation['author'], preliminaryInformation['p_date'], preliminaryInformation['p_time'], preliminaryInformation['a_date'], preliminaryInformation['a_time'], len(sentenceArray), filename, article])
+	#db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [preliminaryInformation["title"], preliminaryInformation['author'], preliminaryInformation['p_date'], preliminaryInformation['p_time'], preliminaryInformation['a_date'], preliminaryInformation['a_time'], len(sentenceArray), filename, article])
 
 	# Print out the entire array of reconstructed sentences
 	print "\n\n"
 	for x in range(len(sentenceArray)):
 		print sentenceArray[x]
-		print db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
+		#print db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
 		print x
-		db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
+		#db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
 		print "\n"
 
 	print "\n\n", len(sentenceArray), "sentences found.\n"
@@ -299,15 +303,18 @@ else:
 # Start of program
 
 #need to check whether it exists or not
-connection = sqlite3.connect('RussianWordNet.db')
-db = connection.cursor()
-db.execute("CREATE TABLE Articles (ID INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT, Author TEXT, PublishDate TEXT, PublishTime TEXT, AccessDate TEXT, AccessTime TEXT, SentenceCount INTEGER, File TEXT, Link TEXT)")
+#connection = sqlite3.connect('RussianWordNet.db')
+#db = connection.cursor()
+#db.execute("CREATE TABLE Articles (ID INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT, Author TEXT, PublishDate TEXT, PublishTime TEXT, AccessDate TEXT, AccessTime TEXT, SentenceCount INTEGER, File TEXT, Link TEXT)")
 #we need to have jagged stuff but idk how to think right now
 #also need a unique id
-db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
+#db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
 # Page method of retrieving the articles, this will be ther preferred method from now on
 x = 0
 # make that read from a file to load the last page that was fetched
+threadPool = Pool(10)
+poolArray = []
+
 if len(sys.argv) == 1:
 	while True:
 		print "http://www.news.tj/ru/news?page=%d" % x
@@ -315,18 +322,38 @@ if len(sys.argv) == 1:
 		tree = html.fromstring(articleList.content) 
 		title = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
 
+		'''
 		for y in range(len(title)):
+			poolArray.append('http://news.tj' + title[y])
+		'''
+		
+		y = 0
+		print len(title)
+		while y < len(title):
+			print y
 			print 'http://news.tj' + title[y]
-			stripArticle('http://news.tj' + title[y])
+			#stripArticle('http://news.tj' + title[y])
+			poolArray = ['http://news.tj' + title[y]]
+			for z in range(0, 10):
+				if (y + 1) < len(title):
+					poolArray.append('http://news.tj' + title[y + 1])
+					print y
+					y += 1
+				else:
+					y += 1
+			threadPool.map(stripArticle, poolArray)
+		
 			print '\n------------------------------------------------------------------------------------------------\n'
-			connection.commit()
+			#connection.commit()
 		x += 1
 else:
 	print '\n------------------------------------------------------------------------------------------------'
 	print str(sys.argv[1])
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
-	connection.commit()
+	#connection.commit()
 
-connection.close()
+#connection.close()
+
+print poolArray
 
