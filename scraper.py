@@ -8,7 +8,7 @@ import sys
 import sqlite3
 import os
 from multiprocessing import Pool
-import threading
+from threading import BoundedSemaphore
 #import nltk
 
 # Saving these
@@ -30,7 +30,8 @@ customWords = [
 
 pagesList = []
 poolArray = []
-poolSema = threading.BoundedSemaphore(value=1)
+poolSema = BoundedSemaphore(value = 1)
+queue = []
 
 russianDictionary = enchant.Dict("ru_RU")
 
@@ -287,7 +288,11 @@ def stripArticle(article):
 	poolSema.acquire()
 	connection = sqlite3.connect('RussianWordNet.db')
 	db = connection.cursor()
-	db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [preliminaryInformation["title"], preliminaryInformation['author'], preliminaryInformation['p_date'], preliminaryInformation['p_time'], preliminaryInformation['a_date'], preliminaryInformation['a_time'], len(sentenceArray), filename, article])
+	db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+		[preliminaryInformation["title"], preliminaryInformation['author'], 
+		preliminaryInformation['p_date'], preliminaryInformation['p_time'], 
+		preliminaryInformation['a_date'], preliminaryInformation['a_time'], 
+		len(sentenceArray), filename, article])
 	#connection.commit()
 	# Print out the entire array of reconstructed sentences
 	#print "\n\n"
@@ -331,69 +336,55 @@ else:
 
 
 # Start of program
+# AMOUNT_OF_PAGES can be adjusted but the other two should be left alone
+AMOUNT_OF_PAGES = 100
+AMOUNT_OF_THREADS_TO_FETCH_LINKS = 10
+AMOUNT_OF_PAGES_TO_FETCH_PAGES = 5
+
 
 #need to check whether it exists or not
 connection = sqlite3.connect('RussianWordNet.db')
 db = connection.cursor()
-db.execute("CREATE TABLE Articles (ID INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT, Author TEXT, PublishDate TEXT, PublishTime TEXT, AccessDate TEXT, AccessTime TEXT, SentenceCount INTEGER, File TEXT, Link TEXT)")
+db.execute("CREATE TABLE Articles (\
+				ID INTEGER PRIMARY KEY AUTOINCREMENT, \
+				Title TEXT, \
+				Author TEXT, \
+				PublishDate TEXT, \
+				PublishTime TEXT, \
+				AccessDate TEXT, \
+				AccessTime TEXT, \
+				SentenceCount INTEGER, \
+				File TEXT, \
+				Link TEXT)")
 #we need to have jagged stuff but idk how to think right now
 #also need a unique id
 db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
 connection.commit()
-#connection.close()
+connection.close()
 # Page method of retrieving the articles, this will be ther preferred method from now on
 x = 0
 # make that read from a file to load the last page that was fetched
-threadPool = Pool(10)
+threadPool = Pool(AMOUNT_OF_THREADS_TO_FETCH_LINKS)
 
 if len(sys.argv) == 1:
-	#while True:
-
 	linkPages = []
 
-	for x in range(0, 35):
+	# Insert the amount of pages you want to fetch
+	# 35 pages = ~20K sentences
+	# 100 pages = ~56K sentences
+	for x in range(0, AMOUNT_OF_PAGES):
 		linkPages.append("http://www.news.tj/ru/news?page=%d" % x)
-
 
 	results = threadPool.map(getLinks, linkPages)
 	threadPool.close()
 	threadPool.join()
 
+	# Flatten the entire array
 	for y in range(len(results)):
 		for z in range(len(results[y])):
 			pagesList.append('http://www.news.tj' + results[y][z])
 
-	'''
-	print "http://www.news.tj/ru/news?page=%d" % x
-	articleList = requests.get("http://www.news.tj/ru/news?page=%d" % x)
-	tree = html.fromstring(articleList.content) 
-	title = tree.xpath('//div[@id="content"]//div[@class="views-field-title"]//a/@href')
-
-		for y in range(len(title)):
-			poolArray.append('http://news.tj' + title[y])
-
-		y = 0
-		print len(title)
-		while y < len(title):
-			print y
-			print 'http://news.tj' + title[y]
-			#stripArticle('http://news.tj' + title[y])
-			poolArray = ['http://news.tj' + title[y]]
-			for z in range(0, 10):
-				if (y + 1) < len(title):
-					poolArray.append('http://news.tj' + title[y + 1])
-					print y
-					y += 1
-				else:
-					y += 1
-			threadPool.map(stripArticle, poolArray)
-		
-			print '\n------------------------------------------------------------------------------------------------\n'
-			
-
-		#x += 1
-	'''
-	threadPool = Pool(8)
+	threadPool = Pool(AMOUNT_OF_PAGES_TO_FETCH_PAGES)
 	threadPool.map(stripArticle, pagesList)
 	threadPool.close()
 	threadPool.join()
@@ -404,5 +395,4 @@ else:
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
 	#connection.commit()
-connection.close()
 
