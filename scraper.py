@@ -8,6 +8,7 @@ import sys
 import sqlite3
 import os
 from multiprocessing import Pool
+import threading
 #import nltk
 
 # Saving these
@@ -29,6 +30,9 @@ customWords = [
 
 pagesList = []
 poolArray = []
+poolSema = threading.BoundedSemaphore(value=1)
+
+russianDictionary = enchant.Dict("ru_RU")
 
 # Terminal symbols
 terminals = ['!', '?', u'…', u'.']
@@ -87,8 +91,8 @@ def hasNumbers(word):
 
 def stripArticle(article):
 	# Initialize the dictionary
-	russianDictionary = enchant.Dict("ru_RU")
-	print russianDictionary.check(u'кВт.ч.')
+	#print russianDictionary.check(u'кВт.ч.')
+	print "New thread spawned on", article
 	#englishDictionary = enchant.Dict("en_US")
 	#print englishDictionary.check(u'Lahore')
 
@@ -149,10 +153,9 @@ def stripArticle(article):
 	timeDate = extraInformation[0].split(' ')
 
 	# Strip out the ending white space characters, for some reason some articles that were technically the same name has whitespaces at the end
-	'''
+
 	while title[0][-1] == u' ' or title[0][-1] == u' ':
 		title[0] = title[0][:-1]
-	'''
 
 	# Assign to an easy to use map
 	preliminaryInformation = {	
@@ -172,14 +175,19 @@ def stripArticle(article):
 	print "Date Accessed  : " + preliminaryInformation['a_date']
 	print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
 
-
-	#db.execute("SELECT ID FROM Articles WHERE Title = ?", [preliminaryInformation["title"]])
-
+	poolSema.acquire()
+	connection = sqlite3.connect('RussianWordNet.db')
+	db = connection.cursor()
+	db.execute("SELECT ID FROM Articles WHERE Title = ?", [preliminaryInformation["title"]])
 	#check for names already take
-	#fetch = db.fetchone()
-	#if fetch is not None: 
-	#	return
-	
+	fetch = db.fetchone()
+	if fetch is not None:
+		poolSema.release() 
+		connection.close()
+		return
+	poolSema.release() 
+	connection.close()
+
 	# Save the article for internal archiving 
 	filename = saveArticleToFile(page.content, preliminaryInformation["title"], preliminaryInformation["p_date"])
 
@@ -276,18 +284,30 @@ def stripArticle(article):
 	'''
 
 	#check if we already have the title in there for the photoreportazh
-	#db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [preliminaryInformation["title"], preliminaryInformation['author'], preliminaryInformation['p_date'], preliminaryInformation['p_time'], preliminaryInformation['a_date'], preliminaryInformation['a_time'], len(sentenceArray), filename, article])
-
+	poolSema.acquire()
+	connection = sqlite3.connect('RussianWordNet.db')
+	db = connection.cursor()
+	db.execute("INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [preliminaryInformation["title"], preliminaryInformation['author'], preliminaryInformation['p_date'], preliminaryInformation['p_time'], preliminaryInformation['a_date'], preliminaryInformation['a_time'], len(sentenceArray), filename, article])
+	#connection.commit()
 	# Print out the entire array of reconstructed sentences
-	print "\n\n"
+	#print "\n\n"
+	#db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
+	#ID = db.fetchone()
+	#print ID
+
 	for x in range(len(sentenceArray)):
 		print sentenceArray[x]
-		#print db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
 		print x
-		#db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
+		
+		db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
+		#db.execute("INSERT INTO Sentences VALUES (?, ?, ?)", [ID, x, sentenceArray[x]])
+		
 		print "\n"
 
 	print "\n\n", len(sentenceArray), "sentences found.\n"
+	connection.commit()
+	connection.close()
+	poolSema.release()
 
 	
 # node method, this will not be used for awhile, possibly deprecated in favor of the page method
@@ -313,12 +333,14 @@ else:
 # Start of program
 
 #need to check whether it exists or not
-#connection = sqlite3.connect('RussianWordNet.db')
-#db = connection.cursor()
-#db.execute("CREATE TABLE Articles (ID INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT, Author TEXT, PublishDate TEXT, PublishTime TEXT, AccessDate TEXT, AccessTime TEXT, SentenceCount INTEGER, File TEXT, Link TEXT)")
+connection = sqlite3.connect('RussianWordNet.db')
+db = connection.cursor()
+db.execute("CREATE TABLE Articles (ID INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT, Author TEXT, PublishDate TEXT, PublishTime TEXT, AccessDate TEXT, AccessTime TEXT, SentenceCount INTEGER, File TEXT, Link TEXT)")
 #we need to have jagged stuff but idk how to think right now
 #also need a unique id
-#db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
+db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
+connection.commit()
+#connection.close()
 # Page method of retrieving the articles, this will be ther preferred method from now on
 x = 0
 # make that read from a file to load the last page that was fetched
@@ -329,7 +351,7 @@ if len(sys.argv) == 1:
 
 	linkPages = []
 
-	for x in range(0, 30):
+	for x in range(0, 35):
 		linkPages.append("http://www.news.tj/ru/news?page=%d" % x)
 
 
@@ -367,12 +389,14 @@ if len(sys.argv) == 1:
 			threadPool.map(stripArticle, poolArray)
 		
 			print '\n------------------------------------------------------------------------------------------------\n'
-			#connection.commit()
+			
 
 		#x += 1
 	'''
-	threadPool = Pool(5)
+	threadPool = Pool(8)
 	threadPool.map(stripArticle, pagesList)
+	threadPool.close()
+	threadPool.join()
 
 else:
 	print '\n------------------------------------------------------------------------------------------------'
@@ -380,7 +404,5 @@ else:
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
 	#connection.commit()
-
-#connection.close()
-
+connection.close()
 
