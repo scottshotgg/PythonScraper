@@ -31,6 +31,9 @@ customWords = [
 pagesList = []
 poolArray = []
 poolSema = BoundedSemaphore(value = 1)
+
+
+# MAKE THIS INTO A REQUEST CONSUMER AND MAKE IT SERVICE REQUESTS LIKE LOOKING SHIT UP
 queue = []
 
 russianDictionary = enchant.Dict("ru_RU")
@@ -202,6 +205,8 @@ def stripArticle(article):
 	# Initialize the sentence variable and the lastWord ()
 	sentence = ""
 
+	#add in the quotes and some of the other stuff that we need 
+	#need to add something for commas
 	# Reconstruct the sentences
 	for x in range(len(totalInformationSplit)):
 		# This needs to be done by stripping out only alpha chars and then have those
