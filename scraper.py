@@ -33,9 +33,9 @@ pagesList = []
 poolArray = []
 poolSema = BoundedSemaphore(value = 2)
 threadIncrementer = 0
+naf = 0
 
 
-# MAKE THIS INTO A CONSUMER
 queue = Queue(maxsize = 0)
 pagesQueue = Queue(maxsize = 0)
 
@@ -45,8 +45,9 @@ russianDictionary = enchant.Dict("ru_RU")
 terminals = ['!', '?', u'…', u'.']
 
 
-class Consumer(Thread):
+class WriteToDatabaseThread(Thread):
 	def run(self):
+		aaitdb = 0
 		connection = sqlite3.connect('RussianWordNet.db')
 		db = connection.cursor()
 		global queue
@@ -63,6 +64,7 @@ class Consumer(Thread):
 				queue.task_done()	
 				connection.commit()
 				connection.close()
+				print "Articles that were found to already be in the database", aaitdb
 				break
 
 			try:
@@ -108,6 +110,34 @@ def stripAlphaChars(word):
 	#print "\"" + word + "\""
 	return word
 
+def createDatabase():
+	connection = sqlite3.connect('RussianWordNet.db')
+	db = connection.cursor()
+
+	db.execute("CREATE TABLE Articles (									\
+					ID 				INTEGER PRIMARY KEY AUTOINCREMENT, 	\
+					Title 			TEXT 	UNIQUE, 					\
+					Author 			TEXT, 								\
+					PublishDate 	TEXT, 								\
+					PublishTime 	TEXT, 								\
+					AccessDate 		TEXT, 								\
+					AccessTime 		TEXT, 								\
+					SentenceCount 	INTEGER, 							\
+					File 			TEXT, 								\
+					Link 			TEXT 								\
+				)")
+
+	db.execute("CREATE TABLE Sentences (						\
+					A_ID 		INTEGER, 						\
+					S_ID 		INTEGER, 						\
+					Sentence 	TEXT, 							\
+					FOREIGN KEY (A_ID) REFERENCES Articles(ID), \
+					PRIMARY KEY (A_ID, S_ID)					\
+				)")
+
+	connection.commit()
+	connection.close()
+
 # Add a path to this
 def saveArticleToFile(content, title, date):
 	splitDate = date.split('/')
@@ -117,7 +147,7 @@ def saveArticleToFile(content, title, date):
 		os.makedirs(os.path.dirname(filename))
 
 	file = open(filename, 'w')
-	print "wrote file"
+	print "\nWrote file " + filename + "\n"
 	file.write(content)
 	file.close()
 	return filename
@@ -126,11 +156,9 @@ def saveArticleToFile(content, title, date):
 def hasNumbers(word):
 	return any(char.isdigit() for char in word)
 
-class Producer(Thread):
+class ScrapingThread(Thread):
 	#def stripArticle(article):
 	def run(self):
-		global threadIncrementer
-		threadIncrementer += 1
 		article = pagesQueue.get()
 		# Initialize the dictionary
 		#print russianDictionary.check(u'кВт.ч.')
@@ -152,6 +180,10 @@ class Producer(Thread):
 		# Things like this can get really messed up: http://news.tj/ru/node/225126
 
 		page = requests.get(article)
+
+		pagesQueue.task_done()
+		global threadIncrementer
+		threadIncrementer -= 1
 
 		# If we get a 404 then just back out
 		if page.status_code == 404:
@@ -188,14 +220,16 @@ class Producer(Thread):
 		# If there is no information on the article then just back out and assume there isn't an article to process
 		#make this do something later
 		if len(extraInformation) == 0:
+			global naf
 			print "No article found"
+			naf += 1
 			return
 
 		# Split the time and date
 		timeDate = extraInformation[0].split(' ')
 
 		# Strip out the ending white space characters, for some reason some articles that were technically the same name has whitespaces at the end
-
+		# These are actually two different white space characters, one is an ascii space and the other is a unicode space
 		while title[0][-1] == u' ' or title[0][-1] == u' ':
 			title[0] = title[0][:-1]
 
@@ -218,7 +252,7 @@ class Producer(Thread):
 		# print "Time Published : " + preliminaryInformation['p_time'] + "\n"
 		# print "Date Accessed  : " + preliminaryInformation['a_date']
 		# print "Time Accessed  : " + preliminaryInformation['a_time'] + "\n"
-		
+
 
 		# Don't need to do this, caught this with sqlite3.IntegrityError in the actal insert
 		# poolSema.acquire()
@@ -335,9 +369,9 @@ class Producer(Thread):
 		 	preliminaryInformation['p_date'], preliminaryInformation['p_time'],
 	  		preliminaryInformation['a_date'], preliminaryInformation['a_time'],		
 	   		len(sentenceArray), filename, article]])
-		
-		pagesQueue.task_done()
-		threadIncrementer -= 1
+
+		for x in range(len(sentenceArray)):
+			queue.put(["INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]]])
 
 		#check if we already have the title in there for the photoreportazh
 		#poolSema.acquire()
@@ -374,13 +408,50 @@ class Producer(Thread):
 			
 		# 	# db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
 		# 	# #db.execute("INSERT INTO Sentences VALUES (?, ?, ?)", [ID, x, sentenceArray[x]])
-			
+
 		# 	print "\n"
 
 		# print "\n\n", len(sentenceArray), "sentences found.\n"
 		# connection.commit()
 		# connection.close()
 		#poolSema.release()
+
+
+def startCommander():
+	global threadIncrementer
+	while True and not pagesQueue.empty():
+		if(threadIncrementer < AMOUNT_OF_THREADS_TO_FETCH_PAGES):
+			ScrapingThread().start()
+			threadIncrementer += 1
+
+	ScrapingThread.join()
+	queue.put(["done", ""])
+
+
+def fetchLinks():
+	linkPages = []
+
+	threadPool = Pool(AMOUNT_OF_THREADS_TO_FETCH_LINKS)
+
+	# Insert the amount of pages you want to fetch
+	# 35 pages = ~20K sentences
+	# 100 pages = ~56K sentences
+	for page in range(PAGE_FETCH_BEGIN, PAGE_FETCH_END):
+		linkPages.append("http://www.news.tj/ru/news?page=%d" % page)
+
+	results = threadPool.map(getLinks, linkPages)
+	threadPool.close()
+	threadPool.join()
+
+	# Flatten the entire array
+	print "Articles to be fetched: \n\n"
+	for y in range(len(results)):
+		for z in range(len(results[y])):
+			#pagesList.append('http://www.news.tj' + results[y][z])
+			pagesQueue.put('http://www.news.tj' + results[y][z])
+			print 'http://www.news.tj' + results[y][z]
+	
+	print "\n\n"
 
 		
 # node method, this will not be used for awhile, possibly deprecated in favor of the page method
@@ -406,59 +477,22 @@ else:
 # Start of program
 # AMOUNT_OF_PAGES can be adjusted but the other two should be left alone
 PAGE_FETCH_BEGIN = 0
-PAGE_FETCH_END = 35
+PAGE_FETCH_END = 200
 AMOUNT_OF_THREADS_TO_FETCH_LINKS = 10
-AMOUNT_OF_THREADS_TO_FETCH_PAGES = 20
+AMOUNT_OF_THREADS_TO_FETCH_PAGES = 18
 
 
 #need to check whether it exists or not
-connection = sqlite3.connect('RussianWordNet.db')
-db = connection.cursor()
-db.execute("CREATE TABLE Articles (						\
-				ID INTEGER PRIMARY KEY AUTOINCREMENT, 	\
-				Title TEXT UNIQUE, 						\
-				Author TEXT, 							\
-				PublishDate TEXT, 						\
-				PublishTime TEXT, 						\
-				AccessDate TEXT, 						\
-				AccessTime TEXT, 						\
-				SentenceCount INTEGER, 					\
-				File TEXT, 								\
-				Link TEXT)")
-
-db.execute("CREATE TABLE Sentences (A_ID INTEGER, S_ID INTEGER, Sentence TEXT, FOREIGN KEY (A_ID) REFERENCES Articles(ID), PRIMARY KEY (A_ID, S_ID))")
-connection.commit()
-connection.close()
+createDatabase()
 # Page method of retrieving the articles, this will be ther preferred method from now on
-x = 0
+
 # make that read from a file to load the last page that was fetched
-threadPool = Pool(AMOUNT_OF_THREADS_TO_FETCH_LINKS)
 
 if len(sys.argv) == 1:
-	linkPages = []
-
-	# Insert the amount of pages you want to fetch
-	# 35 pages = ~20K sentences
-	# 100 pages = ~56K sentences
-	for page in range(PAGE_FETCH_BEGIN, PAGE_FETCH_END):
-		linkPages.append("http://www.news.tj/ru/news?page=%d" % page)
-
-	results = threadPool.map(getLinks, linkPages)
-	threadPool.close()
-	threadPool.join()
-
-	# Flatten the entire array
-	print "Articles to be fetched: \n\n"
-	for y in range(len(results)):
-		for z in range(len(results[y])):
-			pagesList.append('http://www.news.tj' + results[y][z])
-			pagesQueue.put('http://www.news.tj' + results[y][z])
-			print 'http://www.news.tj' + results[y][z]
-	
-	print "\n\n"
+	fetchLinks()
 
 	# start the consumer
-	Consumer().start()
+	WriteToDatabaseThread().start()
 	#ProducerThread().start()
 
 	#queue.join()
@@ -468,11 +502,7 @@ if len(sys.argv) == 1:
 	# threadPool.close()
 	# threadPool.join()
 
-	while True and not pagesQueue.empty():
-		if(threadIncrementer < AMOUNT_OF_THREADS_TO_FETCH_PAGES):
-			Producer().start()
-
-	queue.put(["done", ""])
+	startCommander()
 
 else:
 	print '\n------------------------------------------------------------------------------------------------'
@@ -480,4 +510,6 @@ else:
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
 	#connection.commit()
+
+print "Number of \"No Article Found\"'s'", naf
 
