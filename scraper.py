@@ -144,7 +144,9 @@ def createDatabase():
 		userInput = raw_input("(Y/n)? ")
 		if userInput[0] == "Y" or userInput[0] == "y":
 			print 'Backing up database...'
-			filename = "Backups/" + str(time.strftime("%Y/%m/%d")) + "/RussianWordNet-" + str(time.strftime("%H.%M.%S")) + ".db"
+			# Github doesn't like the name being like that for some reason
+			filenameTime = time.strftime("%Y/%m/%d").split('/')
+			filename = "Backups/" + filenameTime[0] + "/" + filenameTime[1] + "/" + filenameTime[2] + "/RussianWordNet-" + str(time.strftime("%H.%M.%S")) + ".db"
 			if not os.path.exists(os.path.dirname(filename)):
 				os.makedirs(os.path.dirname(filename))
 			os.rename("RussianWordNet.db", filename)
