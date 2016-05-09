@@ -51,7 +51,7 @@ class WriteToDatabaseThread(Thread):
 		connection = sqlite3.connect('RussianWordNet.db')
 		db = connection.cursor()
 		global queue
-		print "Consumer starting"
+		print "\nDatabase thread starting"
 		print queue
 		while True:
 			executionStatment = queue.get()
@@ -61,19 +61,22 @@ class WriteToDatabaseThread(Thread):
 
 
 			if(executionStatment[0] == "done"):
-				queue.task_done()	
+				#queue.task_done()	
 				connection.commit()
 				connection.close()
-				print "Articles that were found to already be in the database", aaitdb
+				print "Articles that were found to already be in the database:", aaitdb
 				break
 
 			try:
 				db.execute(executionStatment[0], executionStatment[1])
 				connection.commit()
-			except sqlite3.IntegrityError:
-				print "Article already in the database"
+			except sqlite3.IntegrityError as e:
+				if e.message == 'UNIQUE constraint failed: Articles.Title':
+					print "\n***** Article already in the database *****"
+					aaitdb += 1
+				#time.sleep(.5)
 			
-			queue.task_done()
+			#queue.task_done()
 
 			
 			#print executionStatment
@@ -113,56 +116,68 @@ def stripAlphaChars(word):
 def createDatabase():
 	connection = sqlite3.connect('RussianWordNet.db')
 	db = connection.cursor()
+	try:
+		db.execute("CREATE TABLE Articles (									\
+						ID 				INTEGER PRIMARY KEY AUTOINCREMENT, 	\
+						Title 			TEXT 	UNIQUE, 					\
+						Author 			TEXT, 								\
+						PublishDate 	TEXT, 								\
+						PublishTime 	TEXT, 								\
+						AccessDate 		TEXT, 								\
+						AccessTime 		TEXT, 								\
+						SentenceCount 	INTEGER, 							\
+						File 			TEXT, 								\
+						Link 			TEXT 								\
+					)")
 
-	db.execute("CREATE TABLE Articles (									\
-					ID 				INTEGER PRIMARY KEY AUTOINCREMENT, 	\
-					Title 			TEXT 	UNIQUE, 					\
-					Author 			TEXT, 								\
-					PublishDate 	TEXT, 								\
-					PublishTime 	TEXT, 								\
-					AccessDate 		TEXT, 								\
-					AccessTime 		TEXT, 								\
-					SentenceCount 	INTEGER, 							\
-					File 			TEXT, 								\
-					Link 			TEXT 								\
-				)")
-
-	db.execute("CREATE TABLE Sentences (						\
-					A_ID 		INTEGER, 						\
-					S_ID 		INTEGER, 						\
-					Sentence 	TEXT, 							\
-					FOREIGN KEY (A_ID) REFERENCES Articles(ID), \
-					PRIMARY KEY (A_ID, S_ID)					\
-				)")
-
-	connection.commit()
-	connection.close()
+		db.execute("CREATE TABLE Sentences (						\
+						A_ID 		INTEGER, 						\
+						S_ID 		INTEGER, 						\
+						Sentence 	TEXT, 							\
+						FOREIGN KEY (A_ID) REFERENCES Articles(ID), \
+						PRIMARY KEY (A_ID, S_ID)					\
+					)")
+		connection.commit()
+		connection.close()
+	except sqlite3.OperationalError:
+		print 'Tables have already been created, would you like to rebuild them?'
+		userInput = raw_input("(Y/n)? ")
+		if userInput[0] == "Y" or userInput[0] == "y":
+			print 'Backing up database...'
+			filename = "Backups/" + str(time.strftime("%Y/%m/%d")) + "/RussianWordNet-" + str(time.strftime("%H.%M.%S")) + ".db"
+			if not os.path.exists(os.path.dirname(filename)):
+				os.makedirs(os.path.dirname(filename))
+			os.rename("RussianWordNet.db", filename)
+			connection.close()
+			createDatabase()
 
 # Add a path to this
 def saveArticleToFile(content, title, date):
 	splitDate = date.split('/')
 	filename = u'Articles/' + splitDate[2] + '/' + splitDate[1] + '/' + splitDate[0] + '/' + title.replace(u' ', '-') + '.html'
 
-	if not os.path.exists(os.path.dirname(filename)):
-		os.makedirs(os.path.dirname(filename))
-
-	file = open(filename, 'w')
-	print "\nWrote file " + filename + "\n"
-	file.write(content)
-	file.close()
+	if not os.path.exists(filename):
+		if not os.path.exists(os.path.dirname(filename)):
+			os.makedirs(os.path.dirname(filename))
+		file = open(filename, 'w')
+		print "\nWrote file " + filename
+		file.write(content)
+		file.close()
 	return filename
 
 
 def hasNumbers(word):
 	return any(char.isdigit() for char in word)
 
-class ScrapingThread(Thread):
-	#def stripArticle(article):
-	def run(self):
-		article = pagesQueue.get()
+
+def stripArticle(article = None):
+		printArticle = 1
+		if(article is None):
+			printArticle = 0
+			article = pagesQueue.get()
 		# Initialize the dictionary
 		#print russianDictionary.check(u'кВт.ч.')
-		print "New thread spawned on", article
+		print "\nNew thread spawned on", article
 		#englishDictionary = enchant.Dict("en_US")
 		#print englishDictionary.check(u'Lahore')
 
@@ -181,7 +196,7 @@ class ScrapingThread(Thread):
 
 		page = requests.get(article)
 
-		pagesQueue.task_done()
+		#pagesQueue.task_done()
 		global threadIncrementer
 		threadIncrementer -= 1
 
@@ -401,10 +416,9 @@ class ScrapingThread(Thread):
 		#db.execute("SELECT ID FROM Articles WHERE Title=?", [preliminaryInformation["title"]])
 		#ID = db.fetchone()
 		#print ID
-
-		# for x in range(len(sentenceArray)):
-		# 	print sentenceArray[x]
-		# 	print x
+		if printArticle > 0:
+			for x in range(len(sentenceArray)):
+			 	print "\n" + sentenceArray[x]
 			
 		# 	# db.execute("INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]])
 		# 	# #db.execute("INSERT INTO Sentences VALUES (?, ?, ?)", [ID, x, sentenceArray[x]])
@@ -417,6 +431,11 @@ class ScrapingThread(Thread):
 		#poolSema.release()
 
 
+class ScrapingThread(Thread):
+	#def stripArticle(article):
+	def run(self):
+		stripArticle()
+
 def startCommander():
 	global threadIncrementer
 	while True and not pagesQueue.empty():
@@ -424,8 +443,11 @@ def startCommander():
 			ScrapingThread().start()
 			threadIncrementer += 1
 
-	ScrapingThread.join()
+	var = 0
+	while not queue.empty():
+		var += 1
 	queue.put(["done", ""])
+	print '\n\nAmount of times while loop waited:', var
 
 
 def fetchLinks():
@@ -437,6 +459,7 @@ def fetchLinks():
 	# 35 pages = ~20K sentences
 	# 100 pages = ~56K sentences
 	for page in range(PAGE_FETCH_BEGIN, PAGE_FETCH_END):
+		print "Fetching pages " + str(PAGE_FETCH_BEGIN) + " through " + str(PAGE_FETCH_END - 1) + "\n"
 		linkPages.append("http://www.news.tj/ru/news?page=%d" % page)
 
 	results = threadPool.map(getLinks, linkPages)
@@ -444,7 +467,7 @@ def fetchLinks():
 	threadPool.join()
 
 	# Flatten the entire array
-	print "Articles to be fetched: \n\n"
+	print "\nArticles to be fetched: \n\n"
 	for y in range(len(results)):
 		for z in range(len(results[y])):
 			#pagesList.append('http://www.news.tj' + results[y][z])
@@ -476,11 +499,11 @@ else:
 
 # Start of program
 # AMOUNT_OF_PAGES can be adjusted but the other two should be left alone
-PAGE_FETCH_BEGIN = 0
-PAGE_FETCH_END = 200
+PAGE_FETCH_BEGIN = 301
+PAGE_FETCH_END = 302
 AMOUNT_OF_THREADS_TO_FETCH_LINKS = 10
 AMOUNT_OF_THREADS_TO_FETCH_PAGES = 18
-
+ 
 
 #need to check whether it exists or not
 createDatabase()
@@ -505,11 +528,12 @@ if len(sys.argv) == 1:
 	startCommander()
 
 else:
+	WriteToDatabaseThread().start()
 	print '\n------------------------------------------------------------------------------------------------'
-	print str(sys.argv[1])
 	stripArticle(str(sys.argv[1]))
 	print '\n------------------------------------------------------------------------------------------------'
+	queue.put(["done", ""])
 	#connection.commit()
 
-print "Number of \"No Article Found\"'s'", naf
+print "\nNumber of \"No Article Found\"'s", naf
 
