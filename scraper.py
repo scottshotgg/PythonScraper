@@ -10,6 +10,8 @@ import os
 from multiprocessing import Pool
 from threading import BoundedSemaphore, Thread
 from Queue import Queue
+from PIL import Image
+import imagehash
 #import nltk
 
 # Saving these
@@ -217,6 +219,10 @@ def stripArticle(article = None):
 		# Get the author, date, and time that it was published
 		extraInformation = tree.xpath('//div[@class="over"]/div/text()')
 
+		# Get the picture
+		pictureLink = tree.xpath('//div[@class="content"]/img')
+		print pictureLink
+
 		# Get all the tags that start with <p> and end with </p> inside of the over class 
 		pTag = tree.xpath('//div[@class="over"]/p')
 
@@ -272,7 +278,7 @@ def stripArticle(article = None):
 
 
 		# Don't need to do this, caught this with sqlite3.IntegrityError in the actal insert
-		# poolSema.acquire()
+		# poolSema.acquire()s
 		# connection = sqlite3.connect('RussianWordNet.db')
 		# db = connection.cursor()
 		# db.execute("SELECT ID FROM Articles WHERE Title = ?", [preliminaryInformation["title"]])
@@ -501,8 +507,8 @@ else:
 
 # Start of program
 # AMOUNT_OF_PAGES can be adjusted but the other two should be left alone
-PAGE_FETCH_BEGIN = 301
-PAGE_FETCH_END = 302
+PAGE_FETCH_BEGIN = 0
+PAGE_FETCH_END = 100
 AMOUNT_OF_THREADS_TO_FETCH_LINKS = 10
 AMOUNT_OF_THREADS_TO_FETCH_PAGES = 18
  
