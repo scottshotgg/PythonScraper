@@ -12,6 +12,7 @@ from threading import BoundedSemaphore, Thread
 from Queue import Queue
 from PIL import Image
 import imagehash
+from StringIO import StringIO
 #import nltk
 
 # Saving these
@@ -61,27 +62,61 @@ class WriteToDatabaseThread(Thread):
 			# for x in range(len(executionStatment[1])):
 			# 	print executionStatment[1][x]
 
+			if len(executionStatment) > 2:
+				#print executionStatment
+				try:
 
-			if(executionStatment[0] == "done"):
-				#queue.task_done()	
-				connection.commit()
-				connection.close()
-				print "Articles that were found to already be in the database:", aaitdb
-				break
+					db.execute("SELECT * FROM Links WHERE ImageHash = ?", executionStatment[1])
+					fetch = db.fetchone()
 
-			try:
-				db.execute(executionStatment[0], executionStatment[1])
-				connection.commit()
-			except sqlite3.IntegrityError as e:
-				if e.message == 'UNIQUE constraint failed: Articles.Title':
-					print "\n***** Article already in the database *****"
-					aaitdb += 1
-				#time.sleep(.5)
-			
-			#queue.task_done()
+					if fetch is None:
+						if executionStatment[0] == 'en':
+							db.execute("INSERT INTO Links (?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'en'), ?, ?)", executionStatment[1], executionStatment[1], None, None)
+						elif executionStatment[1] == 'ru':
+							db.execute("INSERT INTO Links (?, ?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'ru'), ?)", executionStatment[1], None, executionStatment[1], None)
+						else:
+							db.execute("INSERT INTO Links (?, ?, ?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'tj'))", executionStatment[1], None, None, executionStatment[1])
 
-			
-			#print executionStatment
+							#these might work, cant test because brett needs to fix the damn internets
+					else:
+						if executionStatment[0] == 'en':
+							db.execute("UPDATE Links SET En = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", executionStatment[1], executionStatment[0], executionStatment[1])
+						elif executionStatment[0] == 'ru':
+							db.execute("UPDATE Links SET Ru = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", executionStatment[1], executionStatment[0], executionStatment[1])
+						else:
+							db.execute("UPDATE Links SET Tj = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", executionStatment[1], executionStatment[0], executionStatment[1])
+
+					connection.commit()
+
+				except sqlite3.OperationalError as e:
+					print "are u evn a progarmer m8", e
+
+				#holy fuck this might work lol
+				#db.execute("SELECT CASE WHEN EXISTS (SELECT * FROM Links WHERE ImageHash = ?) THEN (UPDATE Links SET " + executionStatment[0] + " = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?)", executionStatment[1], executionStatment[1], executionStatment[0], executionStatment[1])
+
+			else:
+				if(executionStatment[0] == "done"):
+					#queue.task_done()	
+					connection.commit()
+					connection.close()
+					print "Articles that were found to already be in the database:", aaitdb
+					break
+				else:
+					try:
+						#print executionStatment[0]
+						#print executionStatment[1]
+						db.execute(executionStatment[0], executionStatment[1])
+						connection.commit()
+					except sqlite3.IntegrityError as e:
+						if e.message == 'UNIQUE constraint failed: Articles.Title':
+							print "\n***** Article already in the database *****"
+							aaitdb += 1
+						#time.sleep(.5)
+					
+					#queue.task_done()
+
+					
+					#print executionStatment
 
 
 def getLinks(link):
@@ -123,11 +158,13 @@ def createDatabase():
 						ID 				INTEGER PRIMARY KEY AUTOINCREMENT, 	\
 						Title 			TEXT 	UNIQUE, 					\
 						Author 			TEXT, 								\
+						Language		TEXT,								\
 						PublishDate 	TEXT, 								\
 						PublishTime 	TEXT, 								\
 						AccessDate 		TEXT, 								\
 						AccessTime 		TEXT, 								\
 						SentenceCount 	INTEGER, 							\
+						ImageHash		TEXT,								\
 						File 			TEXT, 								\
 						Link 			TEXT 								\
 					)")
@@ -139,6 +176,21 @@ def createDatabase():
 						FOREIGN KEY (A_ID) REFERENCES Articles(ID), \
 						PRIMARY KEY (A_ID, S_ID)					\
 					)")
+
+
+		db.execute("CREATE TABLE Links (											\
+						ImageHash	TEXT 	UNIQUE,									\
+						En			INTEGER UNIQUE,									\
+						Ru			INTEGER UNIQUE,									\
+						Tj			INTEGER UNIQUE,									\
+																					\
+						FOREIGN KEY (ImageHash) REFERENCES Articles(ImageHash),		\
+						FOREIGN KEY (En) 		REFERENCES Articles(ID),			\
+						FOREIGN KEY (Ru) 		REFERENCES Articles(ID),			\
+						FOREIGN KEY (Tj) 		REFERENCES Articles(ID),			\
+						PRIMARY KEY (En, Ru, Tj)									\
+					)")
+
 		connection.commit()
 		connection.close()
 	except sqlite3.OperationalError:
@@ -219,9 +271,18 @@ def stripArticle(article = None):
 		# Get the author, date, and time that it was published
 		extraInformation = tree.xpath('//div[@class="over"]/div/text()')
 
+		
 		# Get the picture
-		pictureLink = tree.xpath('//div[@class="content"]/img')
-		print pictureLink
+		pictureLink = tree.xpath('//div[@class="content"]/img/@src')
+		if len(pictureLink) > 0:
+			print "Picture", pictureLink[0]
+
+			imageRequest = requests.get(pictureLink[0])
+			image = Image.open(StringIO(imageRequest.content))
+			ihash = imagehash.dhash(image)
+
+			print str(ihash)
+
 
 		# Get all the tags that start with <p> and end with </p> inside of the over class 
 		pTag = tree.xpath('//div[@class="over"]/p')
@@ -260,6 +321,7 @@ def stripArticle(article = None):
 		preliminaryInformation = {	
 									'title':  u''.join(title[0]),  
 									'author': extraInformation[1],
+									'language': article[20:22],
 									'p_date': timeDate[0], 
 									'p_time': timeDate[1],
 									'a_date': time.strftime("%d/%m/%Y"), 
@@ -387,11 +449,22 @@ def stripArticle(article = None):
 		нашему любимому театру, который делал и продолжает делать так много для развития 
 		как русской, так и национальной драматургии.
 		'''
-		queue.put(["INSERT INTO Articles (Title, Author, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-			[preliminaryInformation["title"], preliminaryInformation['author'], 
-		 	preliminaryInformation['p_date'], preliminaryInformation['p_time'],
-	  		preliminaryInformation['a_date'], preliminaryInformation['a_time'],		
-	   		len(sentenceArray), filename, article]])
+		queue.put(["INSERT INTO Articles (Title, Author, Language, PublishDate, PublishTime, AccessDate, AccessTime, SentenceCount, ImageHash, File, Link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+			[
+				preliminaryInformation["title"], 
+				preliminaryInformation['author'],
+				preliminaryInformation['language'], 
+			 	preliminaryInformation['p_date'], 
+			 	preliminaryInformation['p_time'],
+		  		preliminaryInformation['a_date'], 
+		  		preliminaryInformation['a_time'],		
+		   		len(sentenceArray),
+		   		str(ihash), 
+		   		filename, 
+		   		article
+	   		]])
+
+		queue.put([preliminaryInformation["language"], ihash, 0])
 
 		for x in range(len(sentenceArray)):
 			queue.put(["INSERT INTO Sentences VALUES ((SELECT ID FROM Articles WHERE Title=?), ?, ?)", [preliminaryInformation["title"], x, sentenceArray[x]]])
@@ -466,8 +539,8 @@ def fetchLinks():
 	# Insert the amount of pages you want to fetch
 	# 35 pages = ~20K sentences
 	# 100 pages = ~56K sentences
+	print "Fetching pages " + str(PAGE_FETCH_BEGIN) + " through " + str(PAGE_FETCH_END - 1) + "\n"
 	for page in range(PAGE_FETCH_BEGIN, PAGE_FETCH_END):
-		print "Fetching pages " + str(PAGE_FETCH_BEGIN) + " through " + str(PAGE_FETCH_END - 1) + "\n"
 		linkPages.append("http://www.news.tj/ru/news?page=%d" % page)
 
 	results = threadPool.map(getLinks, linkPages)
@@ -508,7 +581,7 @@ else:
 # Start of program
 # AMOUNT_OF_PAGES can be adjusted but the other two should be left alone
 PAGE_FETCH_BEGIN = 0
-PAGE_FETCH_END = 100
+PAGE_FETCH_END = 1
 AMOUNT_OF_THREADS_TO_FETCH_LINKS = 10
 AMOUNT_OF_THREADS_TO_FETCH_PAGES = 18
  
