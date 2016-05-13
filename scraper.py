@@ -65,26 +65,26 @@ class WriteToDatabaseThread(Thread):
 			if len(executionStatment) > 2:
 				#print executionStatment
 				try:
-
-					db.execute("SELECT * FROM Links WHERE ImageHash = ?", executionStatment[1])
+					print type(executionStatment[1])
+					db.execute("SELECT * FROM Links WHERE ImageHash = ?", [executionStatment[1]])
 					fetch = db.fetchone()
 
 					if fetch is None:
 						if executionStatment[0] == 'en':
-							db.execute("INSERT INTO Links (?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'en'), ?, ?)", executionStatment[1], executionStatment[1], None, None)
-						elif executionStatment[1] == 'ru':
-							db.execute("INSERT INTO Links (?, ?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'ru'), ?)", executionStatment[1], None, executionStatment[1], None)
+							db.execute("INSERT INTO Links (ImageHash, En, Ru, Tj) VALUES (?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'en'), ?, ?)", [executionStatment[1], executionStatment[1], None, None])
+						elif executionStatment[0] == 'ru':
+							db.execute("INSERT INTO Links (ImageHash, En, Ru, Tj) VALUES (?, ?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'ru'), ?)", [executionStatment[1], None, executionStatment[1], None])
 						else:
-							db.execute("INSERT INTO Links (?, ?, ?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'tj'))", executionStatment[1], None, None, executionStatment[1])
+							db.execute("INSERT INTO Links (ImageHash, En, Ru, Tj) VALUES (?, ?, ?, (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = 'tj'))", [executionStatment[1], None, None, executionStatment[1]])
 
 							#these might work, cant test because brett needs to fix the damn internets
 					else:
 						if executionStatment[0] == 'en':
-							db.execute("UPDATE Links SET En = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", executionStatment[1], executionStatment[0], executionStatment[1])
+							db.execute("UPDATE Links SET En = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", [executionStatment[1], executionStatment[0], executionStatment[1]])
 						elif executionStatment[0] == 'ru':
-							db.execute("UPDATE Links SET Ru = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", executionStatment[1], executionStatment[0], executionStatment[1])
+							db.execute("UPDATE Links SET Ru = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", [executionStatment[1], executionStatment[0], executionStatment[1]])
 						else:
-							db.execute("UPDATE Links SET Tj = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", executionStatment[1], executionStatment[0], executionStatment[1])
+							db.execute("UPDATE Links SET Tj = (SELECT ID FROM Articles WHERE ImageHash = ? AND Language = ?) WHERE ImageHash = ?", [executionStatment[1], executionStatment[0], executionStatment[1]])
 
 					connection.commit()
 
@@ -274,12 +274,13 @@ def stripArticle(article = None):
 		
 		# Get the picture
 		pictureLink = tree.xpath('//div[@class="content"]/img/@src')
+		ihash = None
 		if len(pictureLink) > 0:
 			print "Picture", pictureLink[0]
 
 			imageRequest = requests.get(pictureLink[0])
 			image = Image.open(StringIO(imageRequest.content))
-			ihash = imagehash.dhash(image)
+			ihash = str(imagehash.dhash(image))
 
 			print str(ihash)
 
@@ -321,7 +322,8 @@ def stripArticle(article = None):
 		preliminaryInformation = {	
 									'title':  u''.join(title[0]),  
 									'author': extraInformation[1],
-									'language': article[20:22],
+									#'language': article[15:17],
+									'language': article[19:21],
 									'p_date': timeDate[0], 
 									'p_time': timeDate[1],
 									'a_date': time.strftime("%d/%m/%Y"), 
@@ -459,7 +461,7 @@ def stripArticle(article = None):
 		  		preliminaryInformation['a_date'], 
 		  		preliminaryInformation['a_time'],		
 		   		len(sentenceArray),
-		   		str(ihash), 
+		   		ihash, 
 		   		filename, 
 		   		article
 	   		]])
@@ -541,7 +543,7 @@ def fetchLinks():
 	# 100 pages = ~56K sentences
 	print "Fetching pages " + str(PAGE_FETCH_BEGIN) + " through " + str(PAGE_FETCH_END - 1) + "\n"
 	for page in range(PAGE_FETCH_BEGIN, PAGE_FETCH_END):
-		linkPages.append("http://www.news.tj/ru/news?page=%d" % page)
+		linkPages.append("http://www.news.tj/en/news?page=%d" % page)
 
 	results = threadPool.map(getLinks, linkPages)
 	threadPool.close()
@@ -581,7 +583,7 @@ else:
 # Start of program
 # AMOUNT_OF_PAGES can be adjusted but the other two should be left alone
 PAGE_FETCH_BEGIN = 0
-PAGE_FETCH_END = 1
+PAGE_FETCH_END = 10
 AMOUNT_OF_THREADS_TO_FETCH_LINKS = 10
 AMOUNT_OF_THREADS_TO_FETCH_PAGES = 18
  
@@ -617,4 +619,5 @@ else:
 	#connection.commit()
 
 print "\nNumber of \"No Article Found\"'s", naf
+
 
